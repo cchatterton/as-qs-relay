@@ -2,6 +2,12 @@
 
 All notable changes to AS QS Relay are recorded here.
 
+## 0.1.3 - 2026-07-20
+
+- Changed the stored cookie value to a readable text map while keeping internal processing as a structured timestamp-indexed payload.
+- Added parsing for the readable cookie text format.
+- Continued support for reading previous encoded JSON cookie values.
+
 ## 0.1.2 - 2026-07-20
 
 - Fixed second-load failures by using WordPress/PHP's normal cookie encoding instead of raw JSON cookie headers.

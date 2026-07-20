@@ -42,6 +42,11 @@ function asqr_add_touch(array $payload, array $touch): array
 
 function asqr_decode_cookie_json(string $raw): array
 {
+    $text_payload = asqr_parse_cookie_text($raw);
+    if (!empty($text_payload)) {
+        return $text_payload;
+    }
+
     $candidates = array($raw, rawurldecode($raw), rawurldecode(rawurldecode($raw)));
 
     foreach ($candidates as $candidate) {
@@ -52,6 +57,41 @@ function asqr_decode_cookie_json(string $raw): array
     }
 
     return array();
+}
+
+function asqr_parse_cookie_text(string $raw): array
+{
+    $payload = array();
+    $entries = array_filter(explode('|', $raw));
+
+    foreach ($entries as $entry) {
+        if (!preg_match('/^([^{}]+)\\{([^{}]*)\\}$/', $entry, $matches)) {
+            continue;
+        }
+
+        $timestamp = rawurldecode($matches[1]);
+        $values = array();
+        $pairs = array_filter(explode('&', $matches[2]));
+
+        foreach ($pairs as $pair) {
+            $parts = explode(':', $pair, 2);
+            if (2 !== count($parts)) {
+                continue;
+            }
+
+            $key = rawurldecode($parts[0]);
+            $value = rawurldecode($parts[1]);
+            if ('' !== $key && '' !== $value) {
+                $values[$key] = $value;
+            }
+        }
+
+        if ('' !== $timestamp && !empty($values)) {
+            $payload[$timestamp] = $values;
+        }
+    }
+
+    return $payload;
 }
 
 function asqr_simplify_payload(array $payload): array
@@ -196,19 +236,19 @@ function asqr_sanitize_query_keys(array $keys): array
 function asqr_write_cookie(array $payload): void
 {
     $payload = asqr_simplify_payload($payload);
-    $json = wp_json_encode($payload, JSON_UNESCAPED_SLASHES);
-    if (!is_string($json)) {
+    $value = asqr_cookie_text($payload);
+    if ('' === $value) {
         return;
     }
 
-    setcookie(ASQR_COOKIE_NAME, $json, asqr_cookie_options(time() + ASQR_COOKIE_TTL));
-    $_COOKIE[ASQR_COOKIE_NAME] = $json;
+    setrawcookie(ASQR_COOKIE_NAME, $value, asqr_cookie_options(time() + ASQR_COOKIE_TTL));
+    $_COOKIE[ASQR_COOKIE_NAME] = $value;
     $GLOBALS['asqr_qs_relay_payload'] = $payload;
 }
 
 function asqr_delete_cookie(): void
 {
-    setcookie(ASQR_COOKIE_NAME, '', asqr_cookie_options(time() - HOUR_IN_SECONDS));
+    setrawcookie(ASQR_COOKIE_NAME, '', asqr_cookie_options(time() - HOUR_IN_SECONDS));
     unset($_COOKIE[ASQR_COOKIE_NAME]);
     $GLOBALS['asqr_qs_relay_payload'] = array();
 }
@@ -235,11 +275,47 @@ function asqr_cookie_options(int $expires): array
 
 function asqr_fit_payload_to_cookie(array $payload): array
 {
-    while (strlen((string) wp_json_encode($payload, JSON_UNESCAPED_SLASHES)) > 3500 && count($payload) > 1) {
+    while (strlen(asqr_cookie_text($payload)) > 3500 && count($payload) > 1) {
         array_shift($payload);
     }
 
     return $payload;
+}
+
+function asqr_cookie_text(array $payload): string
+{
+    $entries = array();
+
+    foreach (asqr_simplify_payload($payload) as $timestamp => $values) {
+        if (!is_array($values)) {
+            continue;
+        }
+
+        $pairs = array();
+        foreach ($values as $key => $value) {
+            $key = asqr_cookie_text_component((string) $key);
+            $value = asqr_cookie_text_component((string) $value);
+
+            if ('' !== $key && '' !== $value) {
+                $pairs[] = $key . ':' . $value;
+            }
+        }
+
+        if (!empty($pairs)) {
+            $entries[] = asqr_cookie_text_component((string) $timestamp) . '{' . implode('&', $pairs) . '}';
+        }
+    }
+
+    return implode('|', $entries);
+}
+
+function asqr_cookie_text_component(string $value): string
+{
+    return str_replace(
+        array('%2B', '%3A', '%2F'),
+        array('+', ':', '/'),
+        rawurlencode($value)
+    );
 }
 
 function asqr_current_url(): string

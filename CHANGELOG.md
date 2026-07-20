@@ -2,6 +2,11 @@
 
 All notable changes to AS QS Relay are recorded here.
 
+## 0.1.2 - 2026-07-20
+
+- Fixed second-load failures by using WordPress/PHP's normal cookie encoding instead of raw JSON cookie headers.
+- Kept the simple timestamp-indexed JSON payload while avoiding the previous double-encoding path.
+
 ## 0.1.1 - 2026-07-20
 
 - Changed the relay cookie to a simple timestamp-indexed JSON key/value map.

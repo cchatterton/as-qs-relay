@@ -201,14 +201,14 @@ function asqr_write_cookie(array $payload): void
         return;
     }
 
-    setrawcookie(ASQR_COOKIE_NAME, $json, asqr_cookie_options(time() + ASQR_COOKIE_TTL));
+    setcookie(ASQR_COOKIE_NAME, $json, asqr_cookie_options(time() + ASQR_COOKIE_TTL));
     $_COOKIE[ASQR_COOKIE_NAME] = $json;
     $GLOBALS['asqr_qs_relay_payload'] = $payload;
 }
 
 function asqr_delete_cookie(): void
 {
-    setrawcookie(ASQR_COOKIE_NAME, '', asqr_cookie_options(time() - HOUR_IN_SECONDS));
+    setcookie(ASQR_COOKIE_NAME, '', asqr_cookie_options(time() - HOUR_IN_SECONDS));
     unset($_COOKIE[ASQR_COOKIE_NAME]);
     $GLOBALS['asqr_qs_relay_payload'] = array();
 }

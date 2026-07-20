@@ -1,7 +1,7 @@
 # AS QS Relay
 
 Author: AlphaSys  
-Version: 0.1.0  
+Version: 0.1.1  
 Status: MVP
 
 ## Purpose

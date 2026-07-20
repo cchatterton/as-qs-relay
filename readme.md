@@ -1,7 +1,7 @@
 # AS QS Relay
 
 Author: AlphaSys  
-Version: 0.1.0  
+Version: 0.1.1  
 Status: MVP
 
 ## Purpose
@@ -13,7 +13,7 @@ AS QS Relay maintains a first-party JSON cookie containing a visitor's tracked q
 - Captures configurable query-string keys from page URLs.
 - Defaults to `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, and `utm_id`.
 - Includes a Settings > QS Relay options page with a repeater for tracked query-string keys.
-- Stores a compact JSON timeline in the `as_qs_relay` cookie.
+- Stores a compact timestamp-indexed JSON map in the `as_qs_relay` cookie.
 - Exposes the parsed payload as `window.ASQR_QS_RELAY`.
 - Supports query-string commands for resetting or hydrating from Independent Analytics.
 - Includes a GitHub release updater with a plugin-row "Check for updates" link.
@@ -47,7 +47,7 @@ as-qs-relay/
 ## Important Notes
 
 - The cookie is intentionally readable by JavaScript.
-- The relay stores up to 20 compact touchpoints and trims older entries if the cookie approaches browser size limits.
+- The relay stores up to 20 timestamped captures and trims older entries if the cookie approaches browser size limits.
 - Independent Analytics hydration requires Independent Analytics to be active and able to resolve the current visitor/session. Direct IA hydration can populate UTM fields when those keys are tracked; URL fallback can populate any tracked keys present on the landing URL.
 - No custom database tables are created.
 

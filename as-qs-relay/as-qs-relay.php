@@ -3,7 +3,7 @@
  * Plugin Name: AS QS Relay
  * Plugin URI: https://github.com/cchatterton/as-qs-relay/releases/latest
  * Description: Maintains a first-party JSON cookie of tracked query-string touchpoints over time.
- * Version: 0.1.0
+ * Version: 0.1.1
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Update URI: https://github.com/cchatterton/as-qs-relay
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('ASQR_VERSION', '0.1.0');
+define('ASQR_VERSION', '0.1.1');
 define('ASQR_COOKIE_NAME', 'as_qs_relay');
 define('ASQR_COOKIE_TTL', 90 * DAY_IN_SECONDS);
 define('ASQR_MAX_TOUCHES', 20);

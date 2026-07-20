@@ -16,18 +16,14 @@ function asqr_is_ia_hydrate_command(): bool
 
 function asqr_cookie_payload(): array
 {
-    $raw = isset($_COOKIE[ASQR_COOKIE_NAME]) ? rawurldecode((string) wp_unslash($_COOKIE[ASQR_COOKIE_NAME])) : '';
-    $payload = $raw ? json_decode($raw, true) : array();
+    $raw = isset($_COOKIE[ASQR_COOKIE_NAME]) ? (string) wp_unslash($_COOKIE[ASQR_COOKIE_NAME]) : '';
+    $payload = $raw ? asqr_decode_cookie_json($raw) : array();
 
     if (!is_array($payload)) {
         $payload = array();
     }
 
-    return wp_parse_args($payload, array(
-        'version' => 1,
-        'updated_at' => '',
-        'touches' => array(),
-    ));
+    return asqr_simplify_payload($payload);
 }
 
 function asqr_add_touch(array $payload, array $touch): array
@@ -37,37 +33,63 @@ function asqr_add_touch(array $payload, array $touch): array
         return $payload;
     }
 
-    $now = gmdate('c');
-    $touches = is_array($payload['touches'] ?? null) ? $payload['touches'] : array();
-    $last_index = count($touches) - 1;
-
-    if ($last_index >= 0 && asqr_same_query_values((array) ($touches[$last_index]['query'] ?? $touches[$last_index]['utm'] ?? array()), $query)) {
-        $touches[$last_index]['last_seen_at'] = $now;
-        $touches[$last_index]['seen_count'] = max(1, (int) ($touches[$last_index]['seen_count'] ?? 1)) + 1;
-        $touches[$last_index]['url'] = esc_url_raw((string) ($touch['url'] ?? asqr_current_url()));
-    } else {
-        $touches[] = array(
-            'first_seen_at' => $now,
-            'last_seen_at' => $now,
-            'seen_count' => 1,
-            'source' => sanitize_key((string) ($touch['source'] ?? 'query_string')),
-            'url' => esc_url_raw((string) ($touch['url'] ?? asqr_current_url())),
-            'query' => $query,
-        );
-    }
-
-    $payload = array(
-        'version' => 1,
-        'updated_at' => $now,
-        'touches' => array_slice($touches, -ASQR_MAX_TOUCHES),
-    );
+    $payload = asqr_simplify_payload($payload);
+    $now = asqr_unique_timestamp($payload, gmdate('c'));
+    $payload[$now] = $query;
 
     return asqr_fit_payload_to_cookie($payload);
 }
 
-function asqr_same_query_values(array $a, array $b): bool
+function asqr_decode_cookie_json(string $raw): array
 {
-    return wp_json_encode(asqr_normalise_query_values($a)) === wp_json_encode(asqr_normalise_query_values($b));
+    $candidates = array($raw, rawurldecode($raw), rawurldecode(rawurldecode($raw)));
+
+    foreach ($candidates as $candidate) {
+        $decoded = json_decode($candidate, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+    }
+
+    return array();
+}
+
+function asqr_simplify_payload(array $payload): array
+{
+    if (isset($payload['touches']) && is_array($payload['touches'])) {
+        $simple = array();
+
+        foreach ($payload['touches'] as $touch) {
+            if (!is_array($touch)) {
+                continue;
+            }
+
+            $timestamp = (string) ($touch['first_seen_at'] ?? $touch['last_seen_at'] ?? '');
+            $values = asqr_normalise_query_values((array) ($touch['query'] ?? $touch['utm'] ?? array()));
+
+            if ('' !== $timestamp && !empty($values)) {
+                $simple[$timestamp] = $values;
+            }
+        }
+
+        return asqr_fit_payload_to_cookie($simple);
+    }
+
+    $simple = array();
+
+    foreach ($payload as $timestamp => $values) {
+        if (!is_string($timestamp) || !is_array($values)) {
+            continue;
+        }
+
+        $values = asqr_normalise_query_values($values);
+        if (!empty($values)) {
+            $simple[$timestamp] = $values;
+        }
+    }
+
+    ksort($simple);
+    return array_slice($simple, -ASQR_MAX_TOUCHES, null, true);
 }
 
 function asqr_normalise_query_values(array $values): array
@@ -83,6 +105,21 @@ function asqr_normalise_query_values(array $values): array
     }
 
     return $normalised;
+}
+
+function asqr_unique_timestamp(array $payload, string $timestamp): string
+{
+    if (!isset($payload[$timestamp])) {
+        return $timestamp;
+    }
+
+    $index = 2;
+    do {
+        $candidate = $timestamp . '.' . $index;
+        $index++;
+    } while (isset($payload[$candidate]));
+
+    return $candidate;
 }
 
 function asqr_tracked_values_from_query(array $query): array
@@ -158,22 +195,22 @@ function asqr_sanitize_query_keys(array $keys): array
 
 function asqr_write_cookie(array $payload): void
 {
-    $json = wp_json_encode($payload);
+    $payload = asqr_simplify_payload($payload);
+    $json = wp_json_encode($payload, JSON_UNESCAPED_SLASHES);
     if (!is_string($json)) {
         return;
     }
 
-    $value = rawurlencode($json);
-    setcookie(ASQR_COOKIE_NAME, $value, asqr_cookie_options(time() + ASQR_COOKIE_TTL));
-    $_COOKIE[ASQR_COOKIE_NAME] = $value;
+    setrawcookie(ASQR_COOKIE_NAME, $json, asqr_cookie_options(time() + ASQR_COOKIE_TTL));
+    $_COOKIE[ASQR_COOKIE_NAME] = $json;
     $GLOBALS['asqr_qs_relay_payload'] = $payload;
 }
 
 function asqr_delete_cookie(): void
 {
-    setcookie(ASQR_COOKIE_NAME, '', asqr_cookie_options(time() - HOUR_IN_SECONDS));
+    setrawcookie(ASQR_COOKIE_NAME, '', asqr_cookie_options(time() - HOUR_IN_SECONDS));
     unset($_COOKIE[ASQR_COOKIE_NAME]);
-    $GLOBALS['asqr_qs_relay_payload'] = array('version' => 1, 'updated_at' => '', 'touches' => array());
+    $GLOBALS['asqr_qs_relay_payload'] = array();
 }
 
 function asqr_cookie_options(int $expires): array
@@ -198,8 +235,8 @@ function asqr_cookie_options(int $expires): array
 
 function asqr_fit_payload_to_cookie(array $payload): array
 {
-    while (strlen(rawurlencode((string) wp_json_encode($payload))) > 3500 && count($payload['touches']) > 1) {
-        array_shift($payload['touches']);
+    while (strlen((string) wp_json_encode($payload, JSON_UNESCAPED_SLASHES)) > 3500 && count($payload) > 1) {
+        array_shift($payload);
     }
 
     return $payload;

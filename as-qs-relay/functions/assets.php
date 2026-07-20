@@ -16,7 +16,7 @@ function asqr_enqueue_assets(): void
 
     wp_add_inline_script(
         'asqr-relay',
-        'window.ASQR_QS_RELAY = ' . wp_json_encode(asqr_current_payload()) . ';',
+        'window.ASQR_QS_RELAY = ' . wp_json_encode(asqr_current_payload(), JSON_UNESCAPED_SLASHES) . ';',
         'before'
     );
 }
